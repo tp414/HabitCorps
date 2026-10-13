@@ -1,5 +1,5 @@
 """
-Habit Corps – Startpunkt der Anwendung.
+Habit Corps - Startpunkt der Anwendung.
 
 Start:  python3 app.py
 Danach öffnet sich der Browser unter http://localhost:5050
