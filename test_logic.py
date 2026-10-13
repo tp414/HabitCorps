@@ -448,6 +448,25 @@ class TestTutorialReset(Base):
             L.set_today(None)
 
 
+# === Online-Betrieb (z. B. Render) ===
+class TestOnlineConfig(unittest.TestCase):
+    # Lokal: nur eigener Rechner, Port 5050. Online (PORT gesetzt): offen für alle, Port vom Anbieter.
+    def check(self, env, host, port, online):
+        import subprocess, sys
+        code = "import app; print(app.HOST, app.PORT, app.ONLINE)"
+        e = {k: v for k, v in os.environ.items() if k not in ("PORT", "HABIT_PORT")}
+        e.update(env)
+        out = subprocess.run([sys.executable, "-c", code], env=e, capture_output=True, text=True,
+                             cwd=os.path.dirname(os.path.abspath(__file__))).stdout.split()
+        self.assertEqual(out, [host, str(port), str(online)])
+
+    def test_local(self):
+        self.check({}, "127.0.0.1", 5050, False)
+
+    def test_online(self):
+        self.check({"PORT": "10000"}, "0.0.0.0", 10000, True)
+
+
 # === Speichern und Geschwindigkeit ===
 class TestPersistence(unittest.TestCase):
     # Speichern und wieder Laden liefert dieselben Daten, keine Restdateien

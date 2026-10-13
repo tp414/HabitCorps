@@ -67,6 +67,7 @@ function render() {
   $("blocked").textContent = s.blocked ? "🔒 " + s.blocked : "";
 
   renderDemo();
+  $("online-note").hidden = !s.online;     // Hinweis nur in der Online-Version
   maybeStartTour();
   renderForecast();
   renderLadder();

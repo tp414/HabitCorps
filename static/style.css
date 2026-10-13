@@ -133,6 +133,7 @@ body {
 .command .btn { border: 2px solid var(--line); border-bottom-width: 4px; }
 .command .btn-warn { border-color: #F2B4AC; }
 .command .btn + .btn { margin-top: 8px; }
+.online-note { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); background: var(--khaki); border-radius: 12px; padding: 10px 12px; }
 .btn-danger { background: var(--red); color: #fff; border-bottom: 5px solid var(--red-dark); }
 .reset-kicker { color: var(--red-dark); }
 .reset-actions { display: flex; gap: 10px; justify-content: center; }

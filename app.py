@@ -52,7 +52,13 @@ DEMO_FILE = os.path.join(BASE, "demo_data.json")   # Demo-Modus, getrennt von da
 STATIC = os.path.join(BASE, "static")
 # Port = "Hausnummer" des Servers. Standard ist 5050, kann über eine
 # Umgebungsvariable HABIT_PORT geändert werden. int(...) macht aus Text eine Zahl.
-PORT = int(os.environ.get("HABIT_PORT", 5050))
+#
+# Online-Betrieb (z. B. auf Render): Der Anbieter setzt automatisch die
+# Umgebungsvariable PORT. Dann muss der Server von außen erreichbar sein
+# (Adresse 0.0.0.0 statt nur 127.0.0.1) und darf keinen Browser öffnen.
+ONLINE = "PORT" in os.environ
+PORT = int(os.environ.get("PORT") or os.environ.get("HABIT_PORT", 5050))
+HOST = "0.0.0.0" if ONLINE else "127.0.0.1"
 
 # Ein "Lock" ist wie ein Schlüssel: Nur wer ihn hat, darf auf die Datei
 # zugreifen. So schreiben nie zwei Anfragen gleichzeitig in data.json.
@@ -92,6 +98,7 @@ def with_data(action, is_demo=False):
             # Den Zustand für die Oberfläche zusammenstellen
             st = logic.state(data)
             st["demo"] = demo.info(data) if is_demo else None
+            st["online"] = ONLINE          # Oberfläche zeigt dann einen Hinweis zur Online-Demo
             return result, st
         finally:
             # Simuliertes Datum wieder abschalten, damit nichts "hängen bleibt"
@@ -245,12 +252,13 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     """Startet den Server und öffnet den Browser."""
-    # Server nur auf dem eigenen Rechner (127.0.0.1) starten, nicht im Netzwerk
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    # Lokal nur auf dem eigenen Rechner (127.0.0.1), online für alle (0.0.0.0)
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
     url = f"http://localhost:{PORT}"   # f"..." setzt Werte in geschweiften Klammern in den Text ein
-    print(f"Habit Corps läuft auf {url}  (Beenden mit Strg+C)")
-    # Browser nach 0,8 Sekunden öffnen – außer man startet mit --no-browser
-    if "--no-browser" not in sys.argv:
+    # flush=True: Text sofort ausgeben (wichtig für die Protokolle beim Online-Anbieter)
+    print(f"Habit Corps läuft auf {url}  (Beenden mit Strg+C)", flush=True)
+    # Browser nach 0,8 Sekunden öffnen – außer online oder mit --no-browser
+    if not ONLINE and "--no-browser" not in sys.argv:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try:
         # Läuft endlos und beantwortet Anfragen, bis man Strg+C drückt
