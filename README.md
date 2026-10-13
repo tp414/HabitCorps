@@ -3,6 +3,14 @@
 Habit-Tracker im Duolingo-Stil mit Rängen der US Army.
 Gruppenprojekt Einführung in Software Engineering – Musa und Patrick.
 
+## Online-Demo
+
+https://habitcorps.teifl.com (ohne Installation, läuft auf Render)
+
+- Der erste Aufruf kann bis zu einer Minute dauern, weil der Server nach 15 Minuten ohne Besucher schläft.
+- Alle Besucher teilen sich einen Spielstand. Er wird gelöscht, wenn der Server neu startet.
+- Für den eigenen Fortschritt die App lokal starten (siehe unten).
+
 ## Starten
 
 ```
