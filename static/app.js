@@ -19,12 +19,15 @@ let state = null;
 let shownXp = 0;
 let mascotTimer = null;
 let pendingDelete = null;
+let demoMode = false;
 
 /* ---------- Server ---------- */
 async function api(path, body) {
-  const res = await fetch(path, body === undefined ? {} : {
+  const headers = { "Content-Type": "application/json" };
+  if (demoMode) headers["X-Demo"] = "1";       // Demo: Server nutzt demo_data.json
+  const res = await fetch(path, body === undefined ? { headers } : {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   const json = await res.json();
@@ -57,10 +60,15 @@ function render() {
   $("pct-text").textContent = fmt(s.month.percent);
   $("next-rank").innerHTML = s.next_rank
     ? `Noch <b>${fmt(s.next_rank.xp_needed)} XP</b> bis <b>${esc(s.next_rank.name)}</b>`
-    : `General wird am Monatsende vergeben: jeden Tag mind. 5 Missionen mit ×3,0.`;
+    : s.rank.index === 13
+      ? `Höchster Rang erreicht. Salut, General!`
+      : `General wird am Monatsende vergeben: jeden Tag mind. 5 Missionen mit ×3,0.`;
   $("blocked").hidden = !s.blocked;
   $("blocked").textContent = s.blocked ? "🔒 " + s.blocked : "";
 
+  renderDemo();
+  maybeStartTour();
+  renderForecast();
   renderLadder();
   renderMissions();
   renderOrders();
@@ -79,6 +87,32 @@ function setXp(target, animate) {
   requestAnimationFrame(step);
   const chip = document.querySelector(".chip-xp");
   chip.classList.remove("pulse"); void chip.offsetWidth; chip.classList.add("pulse");
+}
+
+function renderForecast() {
+  const f = state.forecast;
+  $("forecast-card").hidden = !f;
+  if (!f) return;
+  const pct = (x) => Math.round(x * 100);
+  $("fc-icon").innerHTML = insigniaSVG(f.likely.index);
+  $("fc-rank").textContent = f.likely.name;
+  $("fc-sub").textContent = `wahrscheinlichster Rang · ${pct(f.likely.p)} %`;
+
+  const rows = f.probabilities.filter((x) => x.p >= 0.01).sort((x, y) => y.index - x.index);
+  $("fc-bars").innerHTML = rows.map((x) => `
+    <li class="${x.index === f.likely.index ? "top" : ""}">
+      ${insigniaSVG(x.index)}
+      <span class="fc-name">${esc(x.name)}</span>
+      <span class="fc-bar"><span style="width:${Math.max(2, pct(x.p))}%"></span></span>
+      <span class="fc-pct">${x.p < 0.01 ? "<1" : pct(x.p)} %</span>
+    </li>`).join("");
+
+  const basis = f.history_days
+    ? `An <b>${f.full_days} von ${f.history_days}</b> Tagen alle Missionen geschafft → Chance pro Tag <b>${pct(f.p)} %</b>.`
+    : `Noch kein Verlauf – Startannahme <b>${pct(f.p)} %</b> pro Tag.`;
+  const safe = `Mit ≥ 50 % mindestens: <b>${esc(f.safe.name)}</b>.`;
+  const best = f.best_case ? ` Ohne Fehltag ab heute: <b>${esc(f.best_case.name)}</b>.` : "";
+  $("fc-foot").innerHTML = `${basis} ${safe}${best} Erwartet: ${fmt(Math.round(f.expected_xp))} XP.`;
 }
 
 function renderLadder() {
@@ -151,9 +185,17 @@ function renderWarning() {
 }
 
 /* ---------- Maskottchen ---------- */
+let mascotKey = "";
 function setMascot(mood, text) {
   const m = $("mascot");
+  const rank = state ? state.rank.index : 0;
+  const key = rank + "|" + mood;
+  if (key !== mascotKey) {               // nur neu zeichnen, wenn sich etwas ändert
+    m.innerHTML = mascotSVG(rank, mood);
+    mascotKey = key;
+  }
   m.className = "mascot " + (mood ? "mood-" + mood : "");
+  $("mascot-name").textContent = "Kuno · " + RANK_NAMES[rank];
   if (text) $("bubble").textContent = text;
 }
 
@@ -206,16 +248,18 @@ function showXpFloat(xp, rect) {
   setTimeout(() => el.remove(), 1200);
 }
 
-function showPromotion(rank) {
+function showPromotion(rank, kicker = "BEFÖRDERUNG!", sub = null) {
+  $("promo-kicker").textContent = kicker;
+  $("promo-mascot").innerHTML = mascotSVG(rank.index, "salute");
   $("promo-insignia").innerHTML = insigniaSVG(rank.index);
   $("promo-rank").textContent = rank.name;
-  $("promo-grade").textContent = "Dienstgrad " + rank.grade;
+  $("promo-grade").textContent = sub || "Dienstgrad " + rank.grade;
   $("promo-anecdote").textContent = "📜 " + rank.anecdote;
   const colors = ["#F5B700", "#6B8E23", "#E5483A", "#2E86DE", "#FF9600"];
   $("confetti").innerHTML = Array.from({ length: 40 }, (_, i) =>
     `<i style="left:${Math.random() * 100}%;background:${colors[i % colors.length]};animation-delay:${Math.random() * .5}s"></i>`).join("");
   $("promo").hidden = false;
-  mascotReact("salute", `Beförderung zum ${rank.name}! Salut!`, 3000);
+  mascotReact("salute", kicker === "BEFÖRDERUNG!" ? `Beförderung zum ${rank.name}! Salut!` : `Orden als ${rank.name}! Salut!`, 3000);
 }
 
 async function addHabit(ev) {
@@ -299,13 +343,242 @@ function checkReminders() {
     const key = `reminded-${h.id}-${state.today}`;
     if (storeGet(key)) continue;
     storeSet(key, "1");
-    const text = `Mission „${h.name}“ ist noch offen. Streak halten, Soldat!`;
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Habit Corps – Antreten!", { body: text });
-    }
-    toast("🔔 " + text, 6000);
-    mascotReact("", text, 6000);
+    fireReminder(h);
   }
+}
+
+function fireReminder(h) {
+  const text = `Mission „${h.name}“ ist noch offen. Streak halten, Soldat!`;
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification("Habit Corps – Antreten!", { body: text });
+  }
+  toast("🔔 " + text, 6000);
+  mascotReact("", text, 6000);
+}
+
+/* ---------- Tutorial mit Kuno (FR-33) ---------- */
+// Jeder Schritt: Ziel-Element (CSS-Selektor, null = Bildschirmmitte), Titel, Text, Kunos Stimmung.
+// "alt" ist ein Ersatz-Ziel, falls das eigentliche Element gerade nicht sichtbar ist.
+const TOUR = [
+  { target: null, mood: "salute", title: "Melde mich zum Dienst!",
+    text: `Ich bin <b>Kuno</b>, dein Ausbilder. Hier trainieren wir Gewohnheiten – Tag für Tag, Rang für Rang.
+           Ich zeige dir in ein paar Schritten, wie alles funktioniert. Du kannst jederzeit überspringen.` },
+  { target: "#open-form", title: "Missionen anlegen",
+    text: `Jede Gewohnheit ist eine <b>Mission</b>. Gib ihr einen Namen, optional ein Ziel und eine
+           <b>Erinnerungszeit</b> – dann melde ich mich, wenn sie noch offen ist (solange die App geöffnet ist).` },
+  { target: "#missions", alt: "#empty", title: "Abhaken",
+    text: `Erledigt? Klick auf den runden Knopf. Das geht <b>einmal pro Tag</b> pro Mission.
+           Jede Erledigung bringt <b>10 XP</b> – und ich salutiere.` },
+  { target: ".chip-streak", title: "Streak – aber Vorsicht!",
+    text: `Die Flamme zählt, wie viele Tage du am Stück durchhältst.
+           Aber: Verpasst du <b>auch nur eine</b> Mission an einem Tag, fallen <b>alle</b> Streaks auf 0.
+           Mehr Missionen heißt mehr XP – aber auch mehr Risiko.` },
+  { target: ".rules", title: "Multiplikatoren",
+    text: `Je länger dein Streak, desto mehr XP pro Mission: <b>×1,5</b> ab 7 Tagen, <b>×2</b> ab 14 und
+           <b>×3</b> ab 30 Tagen. Durchhalten lohnt sich also doppelt und dreifach.` },
+  { target: "#month-card", title: "Monats-XP",
+    text: `Hier sammelst du XP für den laufenden Monat. Der Balken zeigt, wie nah du am Maximum bist
+           und wie viel bis zur nächsten Beförderung fehlt. <b>Jeden Monat</b> startest du wieder als Private –
+           deine Streaks bleiben aber erhalten.` },
+  { target: "#ladder-card", title: "14 Ränge der US Army",
+    text: `Vom Private bis zum General. Mit jedem Rang bekomme ich eine neue Uniform und werde fitter.
+           Die obersten drei Ränge verlangen, dass du im <b>Vormonat</b> schon weit oben warst.` },
+  { target: "#forecast-card", alt: "#month-card", title: "Prognose",
+    text: `Sobald du Missionen hast, rechne ich aus deinem Verlauf aus, welchen Rang du am
+           Monatsende <b>wahrscheinlich</b> erreichst – und was drin ist, wenn du keinen Tag verpasst.` },
+  { target: "#orders-card", title: "Orden",
+    text: `Am Monatsende verleihe ich dir deinen Rang als <b>Orden</b>. So siehst du Monat für Monat,
+           wie weit du gekommen bist.` },
+  { target: "#demo-toggle", title: "Demo-Modus",
+    text: `Neugierig, wie ein General aussieht? Im <b>Demo-Modus</b> kannst du Tage vorspulen,
+           Ränge testen und alles ausprobieren – deine echten Daten bleiben dabei unberührt.` },
+  { target: "#command-card", title: "Kommando",
+    text: `Hier kannst du dieses Tutorial jederzeit wieder ansehen oder deinen
+           <b>Fortschritt zurücksetzen</b> und neu anfangen. Vorher lege ich eine Sicherungskopie an.` },
+  { target: null, mood: "salute", title: "Dein Einsatzplan",
+    text: `<ol class="tour-plan">
+             <li><b>Klein starten:</b> 2–3 Missionen, die du wirklich jeden Tag schaffst.</li>
+             <li><b>Erinnerung setzen</b>, am besten abends – dann rettet sie deinen Streak.</li>
+             <li><b>30 Tage durchhalten</b> – ab dann gibt es ×3 auf jede Mission.</li>
+             <li><b>Langsam aufstocken:</b> Für den General brauchst du 5 Missionen mit ×3.</li>
+             <li><b>Prognose im Blick</b> behalten und nach einem Fehltag sofort neu starten.</li>
+           </ol>
+           Weggetreten – und viel Erfolg, Rekrut!` },
+];
+
+let tourIndex = -1;          // -1 = Tutorial läuft gerade nicht
+
+// Startet das Tutorial automatisch beim ersten Öffnen (nicht im Demo-Modus)
+function maybeStartTour() {
+  if (state && !state.tutorial_done && !state.demo && tourIndex < 0) startTour();
+}
+
+function startTour() {
+  tourIndex = 0;
+  $("tour").hidden = false;
+  showTourStep();
+}
+
+// Ziel-Element suchen; nur nehmen, wenn es sichtbar ist
+function tourTarget(step) {
+  for (const sel of [step.target, step.alt]) {
+    if (!sel) continue;
+    const el = document.querySelector(sel);
+    if (el && el.offsetParent !== null && el.getBoundingClientRect().height > 0) return el;
+  }
+  return null;
+}
+
+function showTourStep() {
+  const step = TOUR[tourIndex];
+  const rank = state ? state.rank.index : 0;
+  $("tour-kuno").innerHTML = mascotSVG(rank, step.mood || "");
+  $("tour-step").textContent = `Schritt ${tourIndex + 1} von ${TOUR.length}`;
+  $("tour-title").textContent = step.title;
+  $("tour-text").innerHTML = step.text;
+  $("tour-dots").innerHTML = TOUR.map((_, i) => `<i class="${i === tourIndex ? "on" : ""}"></i>`).join("");
+  $("tour-back").disabled = tourIndex === 0;
+  $("tour-next").textContent = tourIndex === TOUR.length - 1 ? "Los geht's!" : "Weiter";
+
+  const el = tourTarget(step);
+  if (el) {
+    el.scrollIntoView({ block: "center" });            // sofort hinscrollen ...
+    requestAnimationFrame(() => placeTour(el));        // ... dann Position messen
+  } else {
+    placeTour(null);
+  }
+}
+
+// Spotlight über das Ziel legen und die Sprechblase daneben platzieren
+function placeTour(el) {
+  const spot = $("tour-spot"), card = $("tour-card");
+  const vw = window.innerWidth, vh = window.innerHeight, pad = 8;
+  if (!el) {
+    spot.className = "tour-spot center";
+    card.style.left = Math.max(12, (vw - card.offsetWidth) / 2) + "px";
+    card.style.top = Math.max(12, (vh - card.offsetHeight) / 2) + "px";
+    return;
+  }
+  const r = el.getBoundingClientRect();
+  spot.className = "tour-spot";
+  Object.assign(spot.style, {
+    left: r.left - pad + "px", top: r.top - pad + "px",
+    width: r.width + pad * 2 + "px", height: r.height + pad * 2 + "px",
+  });
+  const cw = card.offsetWidth, ch = card.offsetHeight;
+  let top = r.bottom + pad + 14;                       // bevorzugt unterhalb
+  if (top + ch > vh - 12) top = r.top - pad - 14 - ch; // sonst oberhalb
+  if (top < 12) top = Math.min(vh - ch - 12, Math.max(12, r.top));   // sonst daneben
+  let left = r.left + r.width / 2 - cw / 2;
+  if (top === Math.min(vh - ch - 12, Math.max(12, r.top))) {
+    left = r.right + 20 + cw < vw ? r.right + 20 : r.left - 20 - cw;
+  }
+  card.style.left = Math.min(vw - cw - 12, Math.max(12, left)) + "px";
+  card.style.top = top + "px";
+}
+
+async function endTour() {
+  tourIndex = -1;
+  $("tour").hidden = true;
+  try {
+    const res = await api("/api/tutorial/done", {});    // merken: Tutorial gesehen
+    state = res.state;
+    render();
+  } catch (e) { toast(e.message); }
+}
+
+/* ---------- Fortschritt zurücksetzen (FR-34) ---------- */
+function openReset() {
+  const demo = !!(state && state.demo);
+  $("reset-kuno").innerHTML = mascotSVG(state ? state.rank.index : 0, "sad");
+  $("reset-text").innerHTML = demo
+    ? "Die <b>Demo</b> wird neu aufgesetzt (Szenario „Frischer Start“). Eure echten Daten bleiben unberührt."
+    : `Gelöscht werden <b>alle Missionen, Streaks, XP und Orden</b>. Danach startest du als Private
+       und ich zeige dir das Tutorial noch einmal.<br><br>
+       🛟 Vorher lege ich eine <b>Sicherungskopie</b> im Ordner <code>backups</code> an.`;
+  $("reset-modal").hidden = false;
+}
+
+async function confirmReset() {
+  $("reset-modal").hidden = true;
+  try {
+    const res = await api("/api/reset", {});
+    state = res.state;
+    mascotKey = "";
+    render();
+    const backup = res.result && res.result.backup;
+    toast(backup ? `↺ Neustart! Sicherung: ${backup}` : "↺ Demo neu aufgesetzt.", 6000);
+  } catch (e) { toast(e.message); }
+}
+
+/* ---------- Demo-Modus ---------- */
+function renderDemo() {
+  const on = !!(state && state.demo);
+  document.body.classList.toggle("demo", on);
+  $("demo-banner").hidden = !on;
+  $("demo-panel").hidden = !on;
+  $("demo-toggle-text").textContent = on ? "Demo beenden" : "Demo";
+  if (!on) return;
+  const d = new Date(state.demo.today + "T12:00:00");
+  $("demo-date").textContent = d.toLocaleDateString("de-AT", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+  $("demo-scenario").textContent = "Szenario: " + state.demo.label;
+}
+
+async function setDemo(on) {
+  demoMode = on;
+  mascotKey = "";
+  try {
+    await refresh();
+    toast(on ? "🧪 Demo-Modus aktiv – eure echten Daten bleiben unberührt." : "Zurück zu euren echten Daten.");
+  } catch (e) { demoMode = !on; toast(e.message); }
+}
+
+async function demoAction(kind) {
+  const calls = {
+    "scenario": ["/api/demo/scenario", () => ({ name: $("demo-scenario-select").value })],
+    "day-all": ["/api/demo/next-day", () => ({ mode: "all" })],
+    "day-miss": ["/api/demo/next-day", () => ({ mode: "miss" })],
+    "day-none": ["/api/demo/next-day", () => ({ mode: "none" })],
+    "month": ["/api/demo/end-month", () => ({})],
+    "rank": ["/api/demo/rank", () => ({ rank: Number($("demo-rank-select").value) })],
+  };
+  if (kind === "exit") return setDemo(false);
+  if (kind === "gallery") return openGallery();
+  if (kind === "reminder") {
+    const h = state.habits.find((x) => !x.done_today) || state.habits[0];
+    if (!h) return toast("Keine Mission vorhanden.");
+    askNotificationPermission();
+    return fireReminder(h);
+  }
+  const [path, body] = calls[kind];
+  try {
+    const res = await api(path, body());
+    state = res.state;
+    mascotKey = "";
+    render();
+    const r = res.result || {};
+    if (kind.startsWith("day-")) {
+      toast(`📅 ${r.completed} erledigt, ${r.missed} verpasst${r.reset ? " – alle Streaks auf 0!" : ""}`);
+      if (r.reset) mascotReact("sad", "Eine Mission verpasst … alle Streaks sind weg. Neuer Anlauf!", 3000);
+    }
+    if (kind === "month") toast(`⏩ ${r.days} Tage vorgespult.`);
+    if (kind === "rank") toast(`Knapp vor ${r.name}. Hake eine Mission ab!`);
+    if (kind === "scenario") toast(`Szenario „${r.label}“ geladen.`);
+    const order = r.new_orders && r.new_orders[r.new_orders.length - 1];
+    if (order) {
+      setTimeout(() => showPromotion({ index: order.rank, name: order.rank_name, grade: order.grade, anecdote: order.anecdote },
+        "MONATSORDEN VERLIEHEN", `${order.label} · ${fmt(order.xp)} XP (${fmt(order.percent)} %)`), 400);
+    } else if (r.promoted) {
+      setTimeout(() => showPromotion(state.rank), 400);
+    }
+  } catch (e) { toast(e.message); }
+}
+
+function openGallery(mood = "") {
+  $("gallery-grid").innerHTML = RANK_NAMES.map((n, i) =>
+    `<div class="card gallery-item">${mascotSVG(i, mood)}<b>${n}</b></div>`).join("");
+  document.querySelectorAll("#gallery-moods button").forEach((b) => b.classList.toggle("btn-primary", b.dataset.mood === mood));
+  $("gallery").hidden = false;
 }
 
 /* ---------- Kleinkram ---------- */
@@ -320,13 +593,42 @@ function toast(text, ms = 3000) {
 
 /* ---------- Start ---------- */
 document.addEventListener("DOMContentLoaded", () => {
-  $("mascot").innerHTML = mascotSVG();
   $("open-form").addEventListener("click", openForm);
   $("cancel-form").addEventListener("click", closeForm);
   $("habit-form").addEventListener("submit", addHabit);
   $("f-name").addEventListener("input", (e) => ($("c-name").textContent = e.target.value.length));
   $("f-goal").addEventListener("input", (e) => ($("c-goal").textContent = e.target.value.length));
   $("promo-close").addEventListener("click", () => ($("promo").hidden = true));
+
+  // Tutorial
+  $("tour-next").addEventListener("click", () => {
+    if (tourIndex >= TOUR.length - 1) return endTour();
+    tourIndex++; showTourStep();
+  });
+  $("tour-back").addEventListener("click", () => { if (tourIndex > 0) { tourIndex--; showTourStep(); } });
+  $("tour-skip").addEventListener("click", endTour);
+  $("help-toggle").addEventListener("click", startTour);
+  $("tour-again").addEventListener("click", startTour);
+  window.addEventListener("resize", () => { if (tourIndex >= 0) placeTour(tourTarget(TOUR[tourIndex])); });
+
+  // Zurücksetzen
+  $("reset-open").addEventListener("click", openReset);
+  $("reset-cancel").addEventListener("click", () => ($("reset-modal").hidden = true));
+  $("reset-confirm").addEventListener("click", confirmReset);
+
+  // Demo-Modus
+  $("demo-rank-select").innerHTML = RANK_NAMES.slice(1, 14)
+    .map((n, i) => `<option value="${i + 1}">${n}</option>`).join("");
+  $("demo-toggle").addEventListener("click", () => setDemo(!demoMode));
+  $("demo-panel").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-demo]");
+    if (b) demoAction(b.dataset.demo);
+  });
+  $("gallery-close").addEventListener("click", () => ($("gallery").hidden = true));
+  $("gallery-moods").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-mood]");
+    if (b) openGallery(b.dataset.mood);
+  });
 
   $("missions").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-act]");

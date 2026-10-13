@@ -1,0 +1,8 @@
+# Wird automatisch erzeugt bzw. gehört nicht ins Repository
+__pycache__/
+.DS_Store
+
+# Persönlicher Spielstand: entsteht beim ersten Start automatisch neu
+data.json
+demo_data.json
+backups/

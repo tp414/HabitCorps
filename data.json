@@ -1,59 +1,10 @@
 {
   "version": 1,
-  "start_date": "2026-10-08",
-  "last_processed": "2026-10-07",
+  "start_date": "2026-10-12",
+  "last_processed": "2026-10-11",
   "last_reset": null,
-  "habits": [
-    {
-      "id": "eed2ba47",
-      "name": "10km Laufen",
-      "goal": "Saitama Training",
-      "created": "2026-10-08",
-      "streak": 1,
-      "reminder": "03:00"
-    },
-    {
-      "id": "dee1fcd1",
-      "name": "100 Liegestütz",
-      "goal": "Saitama Training",
-      "created": "2026-10-08",
-      "streak": 1,
-      "reminder": "03:30"
-    },
-    {
-      "id": "0b53e2cc",
-      "name": "100 Kniebeugen",
-      "goal": "Saitama Training",
-      "created": "2026-10-08",
-      "streak": 0,
-      "reminder": "04:00"
-    },
-    {
-      "id": "78c43b04",
-      "name": "100 SitUps",
-      "goal": "Saitama Training",
-      "created": "2026-10-08",
-      "streak": 0,
-      "reminder": "04:30"
-    }
-  ],
-  "completions": [
-    {
-      "habit_id": "eed2ba47",
-      "date": "2026-10-08",
-      "time": "12:09:01",
-      "streak": 1,
-      "multiplier": 1.0,
-      "xp": 10.0
-    },
-    {
-      "habit_id": "dee1fcd1",
-      "date": "2026-10-08",
-      "time": "12:09:04",
-      "streak": 1,
-      "multiplier": 1.0,
-      "xp": 10.0
-    }
-  ],
-  "orders": []
+  "habits": [],
+  "completions": [],
+  "orders": [],
+  "tutorial_done": true
 }

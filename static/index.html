@@ -15,6 +15,8 @@
       <span>HABIT CORPS</span>
     </div>
     <div class="stats">
+      <button class="chip chip-help" id="help-toggle" title="Kunos Tutorial noch einmal ansehen">❔ <span>Hilfe</span></button>
+      <button class="chip chip-demo" id="demo-toggle" title="Demo-Modus: alles ausprobieren, ohne eure echten Daten zu verändern">🧪 <span id="demo-toggle-text">Demo</span></button>
       <div class="chip chip-streak" title="Längster aktueller Streak">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.2 1.6 1 2.5 2 2.5 0-3-1-6 1-9z"/></svg>
         <span id="streak">0</span>
@@ -30,15 +32,20 @@
     </div>
   </header>
 
+  <div class="demo-banner" id="demo-banner" hidden>
+    <span>🧪 DEMO-MODUS · simuliertes Datum <b id="demo-date"></b> · eure echten Daten bleiben unverändert</span>
+  </div>
+
   <main class="layout">
     <!-- Linke Spalte: Maskottchen und Rang -->
     <section class="col col-left">
       <div class="card mascot-card">
         <div id="mascot" class="mascot"></div>
+        <div class="mascot-name" id="mascot-name">Kuno · Private</div>
         <div class="bubble" id="bubble">Haltung annehmen, Rekrut!</div>
       </div>
 
-      <div class="card">
+      <div class="card" id="month-card">
         <div class="card-title">
           <span id="month-label">Monat</span>
           <span class="muted" id="days-left"></span>
@@ -49,7 +56,20 @@
         <div class="blocked" id="blocked" hidden></div>
       </div>
 
-      <div class="card">
+      <div class="card forecast" id="forecast-card" hidden>
+        <div class="card-title">Prognose zum Monatsende <span class="fc-tag">Markov</span></div>
+        <div class="fc-main">
+          <span class="fc-icon" id="fc-icon"></span>
+          <div>
+            <div class="fc-rank" id="fc-rank"></div>
+            <div class="muted small" id="fc-sub"></div>
+          </div>
+        </div>
+        <ul class="fc-bars" id="fc-bars"></ul>
+        <div class="fc-foot" id="fc-foot"></div>
+      </div>
+
+      <div class="card" id="ladder-card">
         <div class="card-title">Rangliste</div>
         <ol class="ladder" id="ladder"></ol>
       </div>
@@ -57,6 +77,50 @@
 
     <!-- Mitte: Missionen -->
     <section class="col col-main">
+      <div class="card demo-panel" id="demo-panel" hidden>
+        <div class="card-title">Demo-Steuerung <span class="muted small" id="demo-scenario"></span></div>
+
+        <div class="demo-group">
+          <div class="demo-label">Szenario</div>
+          <div class="demo-row">
+            <select id="demo-scenario-select">
+              <option value="multiplikatoren">Alle Multiplikatoren (×1 / ×1,5 / ×2 / ×3)</option>
+              <option value="start">Frischer Start (alle Streaks 0)</option>
+              <option value="general">Weg zum General (5 Missionen, ×3, Monatsbeginn)</option>
+            </select>
+            <button class="btn btn-small" data-demo="scenario">Laden</button>
+          </div>
+        </div>
+
+        <div class="demo-group">
+          <div class="demo-label">Zeit vorspulen</div>
+          <div class="demo-row">
+            <button class="btn btn-small btn-primary" data-demo="day-all">+1 Tag · alles erledigt</button>
+            <button class="btn btn-small btn-warn" data-demo="day-miss">+1 Tag · eine verpasst</button>
+            <button class="btn btn-small" data-demo="day-none">+1 Tag · nichts</button>
+            <button class="btn btn-small btn-gold" data-demo="month">Monat abschließen ⏩</button>
+          </div>
+        </div>
+
+        <div class="demo-group">
+          <div class="demo-label">Beförderung testen</div>
+          <div class="demo-row">
+            <select id="demo-rank-select"></select>
+            <button class="btn btn-small" data-demo="rank">Knapp davor setzen</button>
+            <span class="muted small">danach eine Mission abhaken</span>
+          </div>
+        </div>
+
+        <div class="demo-group">
+          <div class="demo-label">Extras</div>
+          <div class="demo-row">
+            <button class="btn btn-small" data-demo="reminder">🔔 Erinnerung testen</button>
+            <button class="btn btn-small" data-demo="gallery">🦥 Alle Kunos ansehen</button>
+            <button class="btn btn-small btn-ghost" data-demo="exit">Demo verlassen</button>
+          </div>
+        </div>
+      </div>
+
       <div class="warning" id="warning" hidden></div>
 
       <div class="section-head">
@@ -92,7 +156,7 @@
 
     <!-- Rechte Spalte: Orden -->
     <section class="col col-right">
-      <div class="card">
+      <div class="card" id="orders-card">
         <div class="card-title">Orden</div>
         <ul class="orders" id="orders"></ul>
         <div class="muted small" id="no-orders">Am Ende jedes Monats wird dein Rang als Orden verliehen.</div>
@@ -105,7 +169,13 @@
           <li>Eine Mission verpasst → <b>alle</b> Streaks auf 0</li>
           <li>Rang und XP starten jeden Monat neu, Streaks bleiben</li>
           <li>Colonel, Brigadier General und General verlangen den Vorrang im Vormonat</li>
+          <li>Nach dem ersten General-Orden ist General auch <b>während des Monats</b> ab 100 % erreichbar</li>
         </ul>
+      </div>
+      <div class="card command" id="command-card">
+        <div class="card-title">Kommando</div>
+        <button class="btn btn-small btn-wide" id="tour-again">📖 Tutorial mit Kuno ansehen</button>
+        <button class="btn btn-small btn-wide btn-warn" id="reset-open">↺ Fortschritt zurücksetzen</button>
       </div>
     </section>
   </main>
@@ -114,12 +184,64 @@
   <div class="overlay" id="promo" hidden>
     <div class="promo-card">
       <div class="confetti" id="confetti"></div>
-      <div class="promo-kicker">BEFÖRDERUNG!</div>
-      <div class="promo-insignia" id="promo-insignia"></div>
-      <div class="promo-rank" id="promo-rank"></div>
+      <div class="promo-kicker" id="promo-kicker">BEFÖRDERUNG!</div>
+      <div class="promo-mascot" id="promo-mascot"></div>
+      <div class="promo-title"><span class="promo-insignia" id="promo-insignia"></span><span class="promo-rank" id="promo-rank"></span></div>
       <div class="promo-grade" id="promo-grade"></div>
       <p class="promo-anecdote" id="promo-anecdote"></p>
       <button class="btn btn-primary btn-wide" id="promo-close">Zu Befehl!</button>
+    </div>
+  </div>
+
+  <!-- Kuno-Galerie (Demo) -->
+  <div class="overlay" id="gallery" hidden>
+    <div class="gallery-card">
+      <div class="section-head">
+        <h1>Kuno in allen Rängen</h1>
+        <button class="btn btn-ghost btn-small" id="gallery-close">Schließen</button>
+      </div>
+      <div class="demo-row" id="gallery-moods">
+        <button class="btn btn-small btn-primary" data-mood="">Normal</button>
+        <button class="btn btn-small" data-mood="salute">Salutieren</button>
+        <button class="btn btn-small" data-mood="sad">Traurig</button>
+      </div>
+      <div class="gallery-grid" id="gallery-grid"></div>
+    </div>
+  </div>
+
+  <!-- Tutorial (FR-33) -->
+  <div class="tour" id="tour" hidden>
+    <div class="tour-spot" id="tour-spot"></div>
+    <div class="tour-card" id="tour-card">
+      <div class="tour-head">
+        <div class="tour-kuno" id="tour-kuno"></div>
+        <div>
+          <div class="tour-step" id="tour-step"></div>
+          <div class="tour-title" id="tour-title"></div>
+        </div>
+      </div>
+      <div class="tour-text" id="tour-text"></div>
+      <div class="tour-dots" id="tour-dots"></div>
+      <div class="tour-actions">
+        <button class="btn btn-small btn-ghost" id="tour-skip">Überspringen</button>
+        <span class="tour-spacer"></span>
+        <button class="btn btn-small" id="tour-back">Zurück</button>
+        <button class="btn btn-small btn-primary" id="tour-next">Weiter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Neustart bestätigen (FR-34) -->
+  <div class="overlay" id="reset-modal" hidden>
+    <div class="promo-card reset-card">
+      <div class="promo-kicker reset-kicker">NEUSTART</div>
+      <div class="promo-mascot" id="reset-kuno"></div>
+      <div class="promo-rank">Wirklich alles zurücksetzen?</div>
+      <p class="promo-anecdote" id="reset-text"></p>
+      <div class="reset-actions">
+        <button class="btn btn-ghost" id="reset-cancel">Abbrechen</button>
+        <button class="btn btn-danger" id="reset-confirm">Ja, neu starten</button>
+      </div>
     </div>
   </div>
 
